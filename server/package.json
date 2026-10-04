@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "echo 'skipping tsc'",
+    "build": "npx prisma generate --schema=src/prisma/schema.prisma",
     "start": "npx prisma migrate deploy --schema=src/prisma/schema.prisma && npx tsx src/index.ts",
     "lint": "eslint . --ext .ts --report-unused-disable-directives --max-warnings 0",
     "format": "prettier --write \"src/**/*.ts\"",
