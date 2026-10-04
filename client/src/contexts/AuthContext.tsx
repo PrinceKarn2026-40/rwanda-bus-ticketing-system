@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { authService } from '@/services/authService'
 import type { User } from '@/types'
 
@@ -15,6 +16,7 @@ const AuthContext = createContext<AuthContextType | null>(null)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const navigate = useNavigate()
 
   useEffect(() => {
     authService
@@ -30,8 +32,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function logout() {
-    await authService.logout()
+    try { await authService.logout() } catch { /* ignore */ }
     setUser(null)
+    navigate('/login', { replace: true })
   }
 
   function updateUser(updated: User) {

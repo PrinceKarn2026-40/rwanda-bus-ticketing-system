@@ -1,8 +1,6 @@
 import { prisma } from '../config/prisma.js'
 
-export type ReportPeriod = 'daily' | 'weekly' | 'monthly' | 'yearly'
-
-export function getDateRange(period: ReportPeriod | string, from?: string, to?: string): { start: Date; end: Date } {
+export function getDateRange(period: string, from?: string, to?: string): { start: Date; end: Date } {
   const now = new Date()
   if (from && to) {
     return { start: new Date(from), end: new Date(to + 'T23:59:59.999Z') }
@@ -29,36 +27,29 @@ export function getDateRange(period: ReportPeriod | string, from?: string, to?: 
 export async function buildReportData(start: Date, end: Date, period: string) {
   const where = { bookedAt: { gte: start, lte: end } }
 
-  const [
-    totalBookings,
-    cancelledBookings,
-    revenue,
-    allBookings,
-    totalSeats,
-    bookedSeats,
-    routeBookings,
-  ] = await Promise.all([
-    prisma.booking.count({ where }),
-    prisma.booking.count({ where: { ...where, status: 'CANCELLED' } }),
-    prisma.payment.aggregate({
-      where: { status: 'COMPLETED', createdAt: { gte: start, lte: end } },
-      _sum: { amount: true },
-    }),
-    prisma.booking.findMany({
-      where: { ...where, status: { not: 'CANCELLED' } },
-      select: { bookedAt: true, totalPrice: true },
-      orderBy: { bookedAt: 'asc' },
-    }),
-    prisma.seat.count(),
-    prisma.booking.count({ where: { ...where, status: { in: ['CONFIRMED', 'USED'] } } }),
-    prisma.booking.groupBy({
-      by: ['scheduleId'],
-      where,
-      _count: { id: true },
-      orderBy: { _count: { id: 'desc' } },
-      take: 5,
-    }),
-  ])
+  const [totalBookings, cancelledBookings, revenue, allBookings, totalSeats, bookedSeats, routeBookings] =
+    await Promise.all([
+      prisma.booking.count({ where }),
+      prisma.booking.count({ where: { ...where, status: 'CANCELLED' } }),
+      prisma.payment.aggregate({
+        where: { status: 'COMPLETED', createdAt: { gte: start, lte: end } },
+        _sum: { amount: true },
+      }),
+      prisma.booking.findMany({
+        where: { ...where, status: { not: 'CANCELLED' } },
+        select: { bookedAt: true, totalPrice: true },
+        orderBy: { bookedAt: 'asc' },
+      }),
+      prisma.seat.count(),
+      prisma.booking.count({ where: { ...where, status: { in: ['CONFIRMED', 'USED'] } } }),
+      prisma.booking.groupBy({
+        by: ['scheduleId'],
+        where,
+        _count: { id: true },
+        orderBy: { _count: { id: 'desc' } },
+        take: 5,
+      }),
+    ])
 
   const dayMap: Record<string, { count: number; revenue: number }> = {}
   for (const b of allBookings) {
@@ -98,22 +89,17 @@ export async function buildReportData(start: Date, end: Date, period: string) {
 }
 
 export async function buildBookingsReport(start: Date, end: Date) {
-  const rows = await prisma.booking.findMany({
+  const bookings = await prisma.booking.findMany({
     where: { bookedAt: { gte: start, lte: end } },
-    select: {
-      ticketNumber: true,
-      bookedAt: true,
-      status: true,
-      totalPrice: true,
-      source: true,
-      destination: true,
+    include: {
       user: { select: { name: true, email: true } },
-      schedule: { select: { departureTime: true, route: { select: { name: true } } } },
+      schedule: { include: { route: { select: { name: true } } } },
       seat: { select: { seatNumber: true } },
     },
     orderBy: { bookedAt: 'desc' },
   })
-  return rows.map((b) => ({
+
+  return bookings.map((b) => ({
     ticket: b.ticketNumber,
     passenger: b.user.name,
     email: b.user.email,
@@ -121,66 +107,53 @@ export async function buildBookingsReport(start: Date, end: Date) {
     from: b.source,
     to: b.destination,
     seat: b.seat.seatNumber,
-    departure: new Date(b.schedule.departureTime).toLocaleString('en-RW'),
-    bookedAt: new Date(b.bookedAt).toLocaleString('en-RW'),
+    departure: new Date(b.schedule.departureTime).toLocaleString(),
+    bookedAt: new Date(b.bookedAt).toLocaleString(),
     status: b.status,
     price: Number(b.totalPrice),
   }))
 }
 
 export async function buildUsersReport(start: Date, end: Date) {
-  const rows = await prisma.user.findMany({
+  const users = await prisma.user.findMany({
     where: { createdAt: { gte: start, lte: end } },
-    select: {
-      name: true,
-      email: true,
-      role: true,
-      phone: true,
-      isActive: true,
-      createdAt: true,
-      _count: { select: { bookings: true } },
-    },
+    include: { _count: { select: { bookings: true } } },
     orderBy: { createdAt: 'desc' },
   })
-  return rows.map((u) => ({
+
+  return users.map((u) => ({
     name: u.name,
     email: u.email,
     role: u.role,
-    phone: u.phone ?? '—',
-    status: u.isActive ? 'Active' : 'Inactive',
+    phone: u.phone ?? '',
+    status: u.isActive ? 'Active' : 'Suspended',
     bookings: u._count.bookings,
-    joinedAt: new Date(u.createdAt).toLocaleDateString('en-RW'),
+    joinedAt: new Date(u.createdAt).toLocaleString(),
   }))
 }
 
 export async function buildRevenueReport(start: Date, end: Date) {
-  const rows = await prisma.payment.findMany({
+  const payments = await prisma.payment.findMany({
     where: { createdAt: { gte: start, lte: end } },
-    select: {
-      amount: true,
-      method: true,
-      status: true,
-      reference: true,
-      paidAt: true,
-      createdAt: true,
+    include: {
       booking: {
-        select: {
-          ticketNumber: true,
+        include: {
           user: { select: { name: true } },
-          schedule: { select: { route: { select: { name: true } } } },
+          schedule: { include: { route: { select: { name: true } } } },
         },
       },
     },
     orderBy: { createdAt: 'desc' },
   })
-  return rows.map((p) => ({
+
+  return payments.map((p) => ({
     ticket: p.booking.ticketNumber,
     passenger: p.booking.user.name,
     route: p.booking.schedule.route.name,
     amount: Number(p.amount),
     method: p.method,
     status: p.status,
-    reference: p.reference ?? '—',
-    paidAt: p.paidAt ? new Date(p.paidAt).toLocaleString('en-RW') : '—',
+    reference: p.reference ?? '',
+    paidAt: p.paidAt ? new Date(p.paidAt).toLocaleString() : '',
   }))
 }
