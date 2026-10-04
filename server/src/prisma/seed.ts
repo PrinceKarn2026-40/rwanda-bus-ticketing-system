@@ -123,6 +123,7 @@ async function main() {
 
   const customer = await prisma.user.findUnique({ where: { email: 'customer@rwandabus.rw' } })
   if (!customer) throw new Error('Customer user not found')
+  const customerId = customer.id
 
   const seats1 = await prisma.seat.findMany({ where: { busId: bus.id } })
   const seats2 = await prisma.seat.findMany({ where: { busId: bus2.id } })
@@ -160,7 +161,7 @@ async function main() {
 
     const booking = await prisma.booking.create({
       data: {
-        userId: customer.id,
+        userId: customerId,
         scheduleId: schedule.id,
         seatId: seats[seatIndex % seats.length].id,
         ticketNumber: `TKT-SEED-${ticketSuffix}`,
@@ -235,6 +236,30 @@ async function main() {
   } else {
     console.log('ℹ️  Sample bookings already exist — skipping')
   }
+
+  // Platform settings singleton
+  await prisma.platformSettings.upsert({
+    where: { id: 'singleton' },
+    update: {},
+    create: {
+      id: 'singleton',
+      siteName: 'Rwanda Bus',
+      supportPhone: '+250794047261',
+      supportEmail: 'rwandabus@gmail.com',
+      supportAddress: 'KG 7 Ave, Kigali, Rwanda',
+      whatsappNumber: '+250794047261',
+      whatsappMessage: 'Hello! I need help with my bus booking.',
+      maintenanceMode: false,
+      maintenanceMessage: "We are currently performing scheduled maintenance. We'll be back shortly.",
+      geminiApiKey: '',
+      aiModel: 'gemini-1.5-flash',
+      aiEnabled: true,
+      aiWelcomeMessage: "Hi! I'm your Rwanda Bus assistant. How can I help you today?",
+      facebookUrl: '',
+      twitterUrl: '',
+      instagramUrl: '',
+    },
+  })
 
   console.log('✅ Seed complete — 14 days × 3 departures = 42 schedules')
   console.log('Admin:    admin@rwandabus.rw    / Admin123!')

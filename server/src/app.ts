@@ -3,9 +3,19 @@ import helmet from 'helmet'
 import cors from 'cors'
 import morgan from 'morgan'
 import rateLimit from 'express-rate-limit'
+import swaggerUi from 'swagger-ui-express'
+import YAML from 'yamljs'
+import { join } from 'path'
 import { env } from './config/env.js'
 import { errorHandler } from './middlewares/errorHandler.js'
 import { notFound } from './middlewares/notFound.js'
+
+let swaggerDoc: object = {}
+try {
+  swaggerDoc = YAML.load(join(__dirname, 'openapi.yaml'))
+} catch {
+  console.warn('[swagger] openapi.yaml not found — /docs will be unavailable')
+}
 
 import authRoutes from './routes/auth.routes.js'
 import userRoutes from './routes/user.routes.js'
@@ -20,10 +30,13 @@ import auditRoutes from './routes/audit.routes.js'
 
 import uploadRoutes from './routes/upload.routes.js'
 import slideshowRoutes from './routes/slideshow.routes.js'
+import settingsRoutes from './routes/settings.routes.js'
+import aiRoutes from './routes/ai.routes.js'
 
 const app = express()
 
 app.set('trust proxy', 1)
+app.set('etag', false)
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -50,6 +63,7 @@ app.use(
 )
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }))
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDoc, { customSiteTitle: 'Rwanda Bus API Docs' }))
 
 app.use('/api/auth', authRoutes)
 app.use('/api/users', userRoutes)
@@ -63,6 +77,8 @@ app.use('/api/reports', reportRoutes)
 app.use('/api/audit-logs', auditRoutes)
 app.use('/api/upload', uploadRoutes)
 app.use('/api/slideshow', slideshowRoutes)
+app.use('/api/settings', settingsRoutes)
+app.use('/api/ai', aiRoutes)
 
 app.use(notFound)
 app.use(errorHandler)

@@ -11,7 +11,6 @@ import HomePage from '@/pages/public/HomePage'
 import SearchPage from '@/pages/public/SearchPage'
 import LoginPage from '@/pages/public/LoginPage'
 import RegisterPage from '@/pages/public/RegisterPage'
-import ForgotPasswordPage from '@/pages/public/ForgotPasswordPage'
 import ResetPasswordPage from '@/pages/public/ResetPasswordPage'
 
 // Customer pages
@@ -20,12 +19,14 @@ import BookingHistoryPage from '@/pages/customer/BookingHistoryPage'
 import BookingPage from '@/pages/customer/BookingPage'
 import TicketPage from '@/pages/customer/TicketPage'
 import ProfilePage from '@/pages/customer/ProfilePage'
+import NotificationsPage from '@/pages/customer/NotificationsPage'
 
 // Agent pages
 import AgentDashboard from '@/pages/agent/AgentDashboard'
 import VerifyTicketPage from '@/pages/agent/VerifyTicketPage'
 import TodaysTripsPage from '@/pages/agent/TodaysTripsPage'
 import AgentProfilePage from '@/pages/agent/AgentProfilePage'
+import PassengerManifestPage from '@/pages/agent/PassengerManifestPage'
 
 // Admin pages
 import AdminDashboard from '@/pages/admin/AdminDashboard'
@@ -39,6 +40,7 @@ import AuditLogsPage from '@/pages/admin/AuditLogsPage'
 
 import AdminProfilePage from '@/pages/admin/AdminProfilePage'
 import SlideshowPage from '@/pages/admin/SlideshowPage'
+import SettingsPage from '@/pages/admin/SettingsPage'
 
 import NotFoundPage from '@/pages/public/NotFoundPage'
 
@@ -79,8 +81,7 @@ export default function AppRoutes() {
         <Route path="/search" element={<SearchPage />} />
         <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />
         <Route path="/register" element={<GuestRoute><RegisterPage /></GuestRoute>} />
-        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-        <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/reset-password" element={<GuestRoute><ResetPasswordPage /></GuestRoute>} />
       </Route>
 
       {/* Customer */}
@@ -95,6 +96,7 @@ export default function AppRoutes() {
         <Route path="/book/:scheduleId" element={<BookingPage />} />
         <Route path="/bookings" element={<BookingHistoryPage />} />
         <Route path="/bookings/:id/ticket" element={<TicketPage />} />
+        <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/profile" element={<ProfilePage />} />
       </Route>
 
@@ -109,6 +111,7 @@ export default function AppRoutes() {
         <Route path="/agent" element={<AgentDashboard />} />
         <Route path="/agent/verify" element={<VerifyTicketPage />} />
         <Route path="/agent/trips" element={<TodaysTripsPage />} />
+        <Route path="/agent/manifest/:scheduleId" element={<PassengerManifestPage />} />
         <Route path="/agent/profile" element={<AgentProfilePage />} />
       </Route>
 
@@ -128,6 +131,7 @@ export default function AppRoutes() {
         <Route path="/admin/bookings" element={<BookingsPage />} />
         <Route path="/admin/reports" element={<ReportsPage />} />
         <Route path="/admin/slideshow" element={<SlideshowPage />} />
+        <Route path="/admin/settings" element={<SettingsPage />} />
         <Route path="/admin/profile" element={<AdminProfilePage />} />
         <Route path="/admin/audit-logs" element={<AuditLogsPage />} />
       </Route>

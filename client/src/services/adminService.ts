@@ -56,8 +56,8 @@ export const userService = {
   async resetPassword(id: string, newPassword: string): Promise<void> {
     await api.post(`/users/${id}/reset-password`, { newPassword })
   },
-  async sendPasswordReset(id: string, newPassword: string): Promise<void> {
-    await api.post(`/users/${id}/send-password-reset`, { newPassword })
+  async sendPasswordReset(id: string): Promise<void> {
+    await api.post(`/users/${id}/send-password-reset`)
   },
 }
 
@@ -66,8 +66,19 @@ export const reportService = {
     const { data } = await api.get('/reports', { params: { period, from, to } })
     return data.data
   },
-  async export(period: string, format: 'pdf' | 'csv', from?: string, to?: string): Promise<Blob> {
+  async export(period: string, format: 'pdf' | 'csv' | 'excel', from?: string, to?: string): Promise<Blob> {
     const response = await api.get('/reports/export', {
+      params: { period, format, from, to },
+      responseType: 'blob',
+    })
+    return response.data
+  },
+  async getModule(module: 'bookings' | 'users' | 'revenue', period: string, from?: string, to?: string): Promise<Record<string, string | number>[]> {
+    const { data } = await api.get(`/reports/${module}`, { params: { period, from, to } })
+    return data.data
+  },
+  async exportModule(module: 'bookings' | 'users' | 'revenue', period: string, format: 'pdf' | 'csv', from?: string, to?: string): Promise<Blob> {
+    const response = await api.get(`/reports/${module}`, {
       params: { period, format, from, to },
       responseType: 'blob',
     })

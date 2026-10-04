@@ -1,103 +1,7 @@
 import { Request, Response } from 'express'
-import { prisma } from '../config/prisma.js'
 import PDFDocument from 'pdfkit'
-
-function getDateRange(period: string, from?: string, to?: string): { start: Date; end: Date } {
-  const now = new Date()
-  if (from && to) {
-    return { start: new Date(from), end: new Date(to + 'T23:59:59.999Z') }
-  }
-  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
-  let start: Date
-  switch (period) {
-    case 'daily':
-      start = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-      break
-    case 'weekly':
-      start = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000)
-      start.setHours(0, 0, 0, 0)
-      break
-    case 'yearly':
-      start = new Date(now.getFullYear(), 0, 1)
-      break
-    default: // monthly
-      start = new Date(now.getFullYear(), now.getMonth(), 1)
-  }
-  return { start, end }
-}
-
-async function buildReportData(start: Date, end: Date, period: string) {
-  const where = { bookedAt: { gte: start, lte: end } }
-
-  const [
-    totalBookings,
-    cancelledBookings,
-    revenue,
-    allBookings,
-    totalSeats,
-    bookedSeats,
-    routeBookings,
-  ] = await Promise.all([
-    prisma.booking.count({ where }),
-    prisma.booking.count({ where: { ...where, status: 'CANCELLED' } }),
-    prisma.payment.aggregate({
-      where: { status: 'COMPLETED', createdAt: { gte: start, lte: end } },
-      _sum: { amount: true },
-    }),
-    prisma.booking.findMany({
-      where: { ...where, status: { not: 'CANCELLED' } },
-      select: { bookedAt: true, totalPrice: true },
-      orderBy: { bookedAt: 'asc' },
-    }),
-    prisma.seat.count(),
-    prisma.booking.count({ where: { ...where, status: { in: ['CONFIRMED', 'USED'] } } }),
-    prisma.booking.groupBy({
-      by: ['scheduleId'],
-      where,
-      _count: { id: true },
-      orderBy: { _count: { id: 'desc' } },
-      take: 5,
-    }),
-  ])
-
-  // Group bookings by day
-  const dayMap: Record<string, { count: number; revenue: number }> = {}
-  for (const b of allBookings) {
-    const day = new Date(b.bookedAt).toISOString().split('T')[0]
-    if (!dayMap[day]) dayMap[day] = { count: 0, revenue: 0 }
-    dayMap[day].count += 1
-    dayMap[day].revenue += Number(b.totalPrice)
-  }
-  const bookingsPerDay = Object.entries(dayMap)
-    .map(([date, v]) => ({ date, count: v.count, revenue: v.revenue }))
-    .sort((a, b) => a.date.localeCompare(b.date))
-
-  // Resolve popular routes
-  const scheduleIds = routeBookings.map((r) => r.scheduleId)
-  const schedules = await prisma.schedule.findMany({
-    where: { id: { in: scheduleIds } },
-    select: { id: true, route: { select: { name: true, origin: true, destination: true } } },
-  })
-  const scheduleMap = Object.fromEntries(schedules.map((s) => [s.id, s.route]))
-  const popularRoutes = routeBookings.map((r) => ({
-    route: scheduleMap[r.scheduleId]?.name ?? 'Unknown',
-    origin: scheduleMap[r.scheduleId]?.origin ?? '',
-    destination: scheduleMap[r.scheduleId]?.destination ?? '',
-    count: r._count.id,
-  }))
-
-  return {
-    period,
-    from: start,
-    to: end,
-    totalBookings,
-    totalRevenue: Number(revenue._sum.amount ?? 0),
-    cancellationRate: totalBookings > 0 ? (cancelledBookings / totalBookings) * 100 : 0,
-    seatOccupancy: totalSeats > 0 ? (bookedSeats / totalSeats) * 100 : 0,
-    bookingsPerDay,
-    popularRoutes,
-  }
-}
+import ExcelJS from 'exceljs'
+import { getDateRange, buildReportData, buildBookingsReport, buildUsersReport, buildRevenueReport } from '../services/report.service.js'
 
 export async function getReports(req: Request, res: Response) {
   const { period = 'monthly', from, to } = req.query as Record<string, string>
@@ -110,6 +14,58 @@ export async function exportReport(req: Request, res: Response) {
   const { period = 'monthly', from, to, format = 'pdf' } = req.query as Record<string, string>
   const { start, end } = getDateRange(period, from, to)
   const data = await buildReportData(start, end, period)
+
+  if (format === 'excel') {
+    const workbook = new ExcelJS.Workbook()
+    workbook.creator = 'Rwanda Bus Ticketing System'
+    workbook.created = new Date()
+
+    // ── Summary sheet ──────────────────────────────────────────────────────
+    const summary = workbook.addWorksheet('Summary')
+    summary.columns = [
+      { header: 'Metric', key: 'metric', width: 28 },
+      { header: 'Value', key: 'value', width: 22 },
+    ]
+    summary.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } }
+    summary.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1D4ED8' } }
+    summary.addRows([
+      { metric: 'Period', value: period },
+      { metric: 'From', value: new Date(start).toLocaleDateString() },
+      { metric: 'To', value: new Date(end).toLocaleDateString() },
+      { metric: 'Total Bookings', value: data.totalBookings },
+      { metric: 'Total Revenue (RWF)', value: data.totalRevenue },
+      { metric: 'Cancellation Rate (%)', value: Number(data.cancellationRate.toFixed(2)) },
+      { metric: 'Seat Occupancy (%)', value: Number(data.seatOccupancy.toFixed(2)) },
+    ])
+
+    // ── Bookings per day sheet ──────────────────────────────────────────────
+    const daily = workbook.addWorksheet('Bookings Per Day')
+    daily.columns = [
+      { header: 'Date', key: 'date', width: 16 },
+      { header: 'Bookings', key: 'count', width: 14 },
+      { header: 'Revenue (RWF)', key: 'revenue', width: 20 },
+    ]
+    daily.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } }
+    daily.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1D4ED8' } }
+    data.bookingsPerDay.forEach((row) => daily.addRow(row))
+
+    // ── Popular routes sheet ────────────────────────────────────────────────
+    const routes = workbook.addWorksheet('Popular Routes')
+    routes.columns = [
+      { header: 'Route', key: 'route', width: 30 },
+      { header: 'Origin', key: 'origin', width: 16 },
+      { header: 'Destination', key: 'destination', width: 16 },
+      { header: 'Bookings', key: 'count', width: 14 },
+    ]
+    routes.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } }
+    routes.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1D4ED8' } }
+    data.popularRoutes.forEach((row) => routes.addRow(row))
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    res.setHeader('Content-Disposition', `attachment; filename="report-${period}.xlsx"`)
+    await workbook.xlsx.write(res)
+    return res.end()
+  }
 
   if (format === 'csv') {
     const rows = [
@@ -138,16 +94,13 @@ export async function exportReport(req: Request, res: Response) {
   const gray = '#6b7280'
   const light = '#f3f4f6'
 
-  // Header band
   doc.rect(0, 0, doc.page.width, 80).fill(blue)
-  doc.fillColor('white').fontSize(22).font('Helvetica-Bold')
-    .text('Rwanda Bus Ticketing System', 50, 22)
+  doc.fillColor('white').fontSize(22).font('Helvetica-Bold').text('Rwanda Bus Ticketing System', 50, 22)
   doc.fontSize(11).font('Helvetica')
     .text(`Report Period: ${period.charAt(0).toUpperCase() + period.slice(1)}  |  ${new Date(start).toLocaleDateString()} – ${new Date(end).toLocaleDateString()}`, 50, 50)
 
   doc.fillColor('#111827').moveDown(3)
 
-  // KPI summary boxes
   const kpis = [
     { label: 'Total Bookings', value: String(data.totalBookings) },
     { label: 'Total Revenue', value: `RWF ${Number(data.totalRevenue).toLocaleString()}` },
@@ -156,8 +109,7 @@ export async function exportReport(req: Request, res: Response) {
   ]
 
   const boxW = 110, boxH = 55, boxGap = 12
-  const startX = 50
-  let bx = startX
+  let bx = 50
   const by = 100
 
   kpis.forEach(({ label, value }) => {
@@ -169,7 +121,6 @@ export async function exportReport(req: Request, res: Response) {
 
   doc.y = by + boxH + 20
 
-  // Bookings per day table
   if (data.bookingsPerDay.length > 0) {
     doc.fillColor('#111827').fontSize(13).font('Helvetica-Bold').text('Bookings & Revenue Per Day', 50)
     doc.moveDown(0.4)
@@ -179,7 +130,6 @@ export async function exportReport(req: Request, res: Response) {
     const headers = ['Date', 'Bookings', 'Revenue (RWF)']
     let tx = 50
 
-    // Header row
     doc.rect(50, tableTop, cols[0] + cols[1] + cols[2], 22).fill(blue)
     headers.forEach((h, i) => {
       doc.fillColor('white').fontSize(9).font('Helvetica-Bold').text(h, tx + 6, tableTop + 6, { width: cols[i] - 12 })
@@ -197,16 +147,11 @@ export async function exportReport(req: Request, res: Response) {
         cx += cols[i]
       })
       rowY += 18
-      if (rowY > doc.page.height - 80) {
-        doc.addPage()
-        rowY = 50
-      }
+      if (rowY > doc.page.height - 80) { doc.addPage(); rowY = 50 }
     })
-
     doc.y = rowY + 10
   }
 
-  // Popular routes table
   if (data.popularRoutes.length > 0) {
     if (doc.y > doc.page.height - 150) doc.addPage()
     doc.fillColor('#111827').fontSize(13).font('Helvetica-Bold').text('Top Routes', 50)
@@ -238,9 +183,127 @@ export async function exportReport(req: Request, res: Response) {
     doc.y = rowY + 10
   }
 
-  // Footer
   doc.fontSize(8).fillColor(gray)
     .text(`Generated on ${new Date().toLocaleString()} — Rwanda Bus Ticketing System`, 50, doc.page.height - 40, { align: 'center', width: doc.page.width - 100 })
 
   doc.end()
+}
+
+// ── Module reports ────────────────────────────────────────────────────────────
+
+type ModuleRow = Record<string, string | number>
+
+function toCsv(headers: string[], rows: ModuleRow[]): string {
+  const lines = [headers.join(',')]
+  for (const row of rows) {
+    lines.push(headers.map((h) => {
+      const v = String(row[h] ?? '')
+      return v.includes(',') ? `"${v}"` : v
+    }).join(','))
+  }
+  return lines.join('\n')
+}
+
+function buildModulePdf(
+  res: Response,
+  title: string,
+  headers: string[],
+  rows: ModuleRow[],
+  filename: string
+) {
+  const doc = new PDFDocument({ size: 'A4', margin: 40, layout: 'landscape' })
+  res.setHeader('Content-Type', 'application/pdf')
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+  doc.pipe(res)
+
+  const blue = '#1d4ed8'
+  const light = '#f3f4f6'
+  const gray = '#6b7280'
+
+  doc.rect(0, 0, doc.page.width, 60).fill(blue)
+  doc.fillColor('white').fontSize(16).font('Helvetica-Bold').text('Rwanda Bus Ticketing System', 40, 14)
+  doc.fontSize(10).font('Helvetica').text(title, 40, 36)
+
+  const colW = Math.floor((doc.page.width - 80) / headers.length)
+  const tableTop = 80
+
+  // Header row
+  let tx = 40
+  doc.rect(40, tableTop, doc.page.width - 80, 20).fill(blue)
+  headers.forEach((h) => {
+    doc.fillColor('white').fontSize(8).font('Helvetica-Bold')
+      .text(h.toUpperCase(), tx + 3, tableTop + 5, { width: colW - 6, ellipsis: true })
+    tx += colW
+  })
+
+  let rowY = tableTop + 20
+  rows.forEach((row, idx) => {
+    if (rowY > doc.page.height - 60) { doc.addPage(); rowY = 40 }
+    doc.rect(40, rowY, doc.page.width - 80, 16).fill(idx % 2 === 0 ? 'white' : light)
+    let cx = 40
+    headers.forEach((h) => {
+      doc.fillColor('#111827').fontSize(7.5).font('Helvetica')
+        .text(String(row[h] ?? ''), cx + 3, rowY + 4, { width: colW - 6, ellipsis: true })
+      cx += colW
+    })
+    rowY += 16
+  })
+
+  doc.fontSize(7).fillColor(gray)
+    .text(`Generated ${new Date().toLocaleString()} — Rwanda Bus Ticketing System`, 40, doc.page.height - 30, { align: 'center', width: doc.page.width - 80 })
+  doc.end()
+}
+
+export async function getBookingsReport(req: Request, res: Response) {
+  const { period = 'monthly', from, to, format } = req.query as Record<string, string>
+  const { start, end } = getDateRange(period, from, to)
+  const rows = await buildBookingsReport(start, end)
+
+  if (!format) return res.json({ data: rows })
+
+  const headers = ['ticket', 'passenger', 'email', 'route', 'from', 'to', 'seat', 'departure', 'bookedAt', 'status', 'price']
+
+  if (format === 'csv') {
+    res.setHeader('Content-Type', 'text/csv')
+    res.setHeader('Content-Disposition', `attachment; filename="bookings-report-${period}.csv"`)
+    return res.send(toCsv(headers, rows))
+  }
+
+  buildModulePdf(res, `Bookings Report — ${period}`, headers, rows, `bookings-report-${period}.pdf`)
+}
+
+export async function getUsersReport(req: Request, res: Response) {
+  const { period = 'monthly', from, to, format } = req.query as Record<string, string>
+  const { start, end } = getDateRange(period, from, to)
+  const rows = await buildUsersReport(start, end)
+
+  if (!format) return res.json({ data: rows })
+
+  const headers = ['name', 'email', 'role', 'phone', 'status', 'bookings', 'joinedAt']
+
+  if (format === 'csv') {
+    res.setHeader('Content-Type', 'text/csv')
+    res.setHeader('Content-Disposition', `attachment; filename="users-report-${period}.csv"`)
+    return res.send(toCsv(headers, rows))
+  }
+
+  buildModulePdf(res, `Users Report — ${period}`, headers, rows, `users-report-${period}.pdf`)
+}
+
+export async function getRevenueReport(req: Request, res: Response) {
+  const { period = 'monthly', from, to, format } = req.query as Record<string, string>
+  const { start, end } = getDateRange(period, from, to)
+  const rows = await buildRevenueReport(start, end)
+
+  if (!format) return res.json({ data: rows })
+
+  const headers = ['ticket', 'passenger', 'route', 'amount', 'method', 'status', 'reference', 'paidAt']
+
+  if (format === 'csv') {
+    res.setHeader('Content-Type', 'text/csv')
+    res.setHeader('Content-Disposition', `attachment; filename="revenue-report-${period}.csv"`)
+    return res.send(toCsv(headers, rows))
+  }
+
+  buildModulePdf(res, `Revenue Report — ${period}`, headers, rows, `revenue-report-${period}.pdf`)
 }

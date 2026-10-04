@@ -11,13 +11,33 @@ function createTransporter() {
   })
 }
 
+export async function verifySmtp(): Promise<void> {
+  const transporter = createTransporter()
+  if (!transporter) {
+    console.warn('[email] SMTP not configured — emails will be skipped')
+    return
+  }
+  try {
+    await transporter.verify()
+    console.log('[email] SMTP connection verified ✓')
+  } catch (err: unknown) {
+    console.error('[email] SMTP connection FAILED:', (err as Error).message)
+  }
+}
+
 async function send(options: nodemailer.SendMailOptions) {
   const transporter = createTransporter()
   if (!transporter) {
     console.warn('[email] SMTP not configured — skipping email:', options.subject)
     return
   }
-  await transporter.sendMail({ from: `"Rwanda Bus Ticketing" <${env.SMTP_USER}>`, ...options })
+  try {
+    await transporter.sendMail({ from: `"Rwanda Bus Ticketing" <${env.SMTP_USER}>`, ...options })
+    console.log('[email] Sent:', options.subject, '→', options.to)
+  } catch (err: unknown) {
+    console.error('[email] Failed to send "' + options.subject + '" to ' + options.to + ':', (err as Error).message)
+    throw err
+  }
 }
 
 function baseTemplate(title: string, body: string) {
@@ -139,6 +159,34 @@ export async function sendAccountSuspendedEmail(to: string, name: string) {
     <p>Your Rwanda Bus Ticketing account has been suspended by an administrator.</p>
     <p>If you believe this is a mistake, please contact our support team.</p>`
   await send({ to, subject: 'Account Suspended', html: baseTemplate('Account Suspended', body) })
+}
+
+export async function sendPasswordResetEmail(to: string, name: string, resetUrl: string) {
+  const body = `
+    <p>Hi <strong>${name}</strong>,</p>
+    <p>We received a request to reset your password. Click the button below to set a new password:</p>
+    <p style="margin:24px 0;">
+      <a href="${resetUrl}" style="background:#1d4ed8;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:700;font-size:15px;">Reset Password</a>
+    </p>
+    <p style="font-size:13px;color:#6b7280;">This link expires in <strong>15 minutes</strong>. If you did not request a password reset, you can safely ignore this email.</p>`
+  await send({ to, subject: 'Reset Your Password — Rwanda Bus Ticketing', html: baseTemplate('Password Reset Request 🔐', body) })
+}
+
+export async function sendPaymentRejectedEmail(to: string, name: string, ticketNumber: string, reason?: string) {
+  const body = `
+    <p>Hi <strong>${name}</strong>,</p>
+    <p>Unfortunately, your payment proof for booking <strong>${ticketNumber}</strong> could not be verified.</p>
+    ${reason ? detailRow('Reason', reason) : ''}
+    <p style="margin-top:24px;">Your booking has been reset to <strong>PENDING</strong>. Please re-submit your payment with a clear proof of payment screenshot.</p>`
+  await send({ to, subject: `Payment Not Approved — ${ticketNumber}`, html: baseTemplate('Payment Verification Failed ❌', body) })
+}
+
+export async function sendPaymentApprovedEmail(to: string, name: string, ticketNumber: string) {
+  const body = `
+    <p>Hi <strong>${name}</strong>,</p>
+    <p>Your payment for booking <strong>${ticketNumber}</strong> has been verified and approved.</p>
+    <p style="margin-top:24px;">Your ticket is now <strong>CONFIRMED</strong>. Check your email for the attached PDF ticket.</p>`
+  await send({ to, subject: `Payment Approved — ${ticketNumber}`, html: baseTemplate('Payment Approved ✅', body) })
 }
 
 export async function sendPasswordResetByAdminEmail(to: string, name: string, newPassword: string) {

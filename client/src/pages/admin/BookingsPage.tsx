@@ -1,34 +1,98 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Search } from 'lucide-react'
+import { Search, Eye, CheckCircle, XCircle, FileImage, Bell } from 'lucide-react'
 import { bookingService } from '@/services/bookingService'
+import api from '@/services/api'
 import { Badge, Button, Card, CardBody, CardHeader, Skeleton } from '@/components/ui'
 import type { Booking } from '@/types'
 
 const statusVariant = (s: string): 'success' | 'danger' | 'warning' | 'default' => {
   if (s === 'CONFIRMED') return 'success'
   if (s === 'CANCELLED') return 'danger'
-  if (s === 'PENDING') return 'warning'
+  if (s === 'PENDING' || s === 'AWAITING_APPROVAL') return 'warning'
   return 'default'
+}
+
+interface PaymentInfo {
+  proofUrl?: string | null
+  method?: string
+  reference?: string | null
+}
+
+interface BookingWithPayment extends Omit<Booking, 'user'> {
+  user?: { id: string; name: string; email: string } | null
+  payment?: PaymentInfo
+}
+
+interface ProofModal {
+  bookingId: string
+  proofUrl?: string | null
+  method?: string
+  reference?: string | null
+  ticketNumber: string
+  passenger: string
+  amount: number
 }
 
 export default function BookingsPage() {
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('ALL')
+  const [proofModal, setProofModal] = useState<ProofModal | null>(null)
+  const [rejectId, setRejectId] = useState<string | null>(null)
+  const [rejectReason, setRejectReason] = useState('')
 
   const { data, isLoading } = useQuery({
     queryKey: ['bookings', 'admin'],
-    queryFn: () => bookingService.getAll(),
+    queryFn: async () => {
+      const res = await api.get('/bookings')
+      return res.data
+    },
+    refetchInterval: 30_000,
   })
-  const bookings: Booking[] = (data as { data: Booking[] })?.data ?? []
+  const bookings: BookingWithPayment[] = (data as { data: BookingWithPayment[] })?.data ?? []
+  const awaitingApproval = bookings.filter((b) => b.status === 'AWAITING_APPROVAL')
+
+  const approveMutation = useMutation({
+    mutationFn: (id: string) => bookingService.approvePayment(id),
+    onSuccess: () => {
+      toast.success('Payment approved — ticket sent to customer')
+      qc.invalidateQueries({ queryKey: ['bookings'] })
+      setProofModal(null)
+    },
+    onError: (err: unknown) => toast.error((err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Failed'),
+  })
+
+  const rejectMutation = useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) => bookingService.rejectPayment(id, reason),
+    onSuccess: () => {
+      toast.success('Payment rejected — customer notified')
+      qc.invalidateQueries({ queryKey: ['bookings'] })
+      setRejectId(null)
+      setRejectReason('')
+      setProofModal(null)
+    },
+    onError: (err: unknown) => toast.error((err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Failed'),
+  })
 
   const cancelMutation = useMutation({
     mutationFn: (id: string) => bookingService.cancel(id),
     onSuccess: () => { toast.success('Booking cancelled'); qc.invalidateQueries({ queryKey: ['bookings'] }) },
     onError: () => toast.error('Failed to cancel booking'),
   })
+
+  function openProof(b: BookingWithPayment) {
+    setProofModal({
+      bookingId: b.id,
+      proofUrl: b.payment?.proofUrl,
+      method: b.payment?.method,
+      reference: b.payment?.reference,
+      ticketNumber: b.ticketNumber,
+      passenger: b.user?.name ?? '—',
+      amount: Number(b.totalPrice),
+    })
+  }
 
   const filtered = bookings.filter((b) => {
     const matchSearch =
@@ -39,14 +103,66 @@ export default function BookingsPage() {
   })
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900 dark:text-white">All Bookings</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{bookings.length} total</p>
-        </div>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-xl font-bold text-gray-900 dark:text-white">All Bookings</h1>
+        <p className="text-sm text-gray-500 mt-0.5">{bookings.length} total bookings</p>
       </div>
 
+      {/* ── PENDING APPROVALS SECTION ── */}
+      {isLoading ? (
+        <Skeleton className="h-24 w-full rounded-xl" />
+      ) : awaitingApproval.length > 0 ? (
+        <div className="rounded-xl border-2 border-orange-300 bg-orange-50 dark:border-orange-700 dark:bg-orange-900/20 p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Bell className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+            <h2 className="font-semibold text-orange-800 dark:text-orange-300">
+              {awaitingApproval.length} Payment{awaitingApproval.length > 1 ? 's' : ''} Awaiting Your Approval
+            </h2>
+          </div>
+          <div className="space-y-2">
+            {awaitingApproval.map((b) => (
+              <div
+                key={b.id}
+                className="flex flex-col gap-3 rounded-lg border border-orange-200 bg-white dark:border-orange-800 dark:bg-gray-800 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="space-y-0.5">
+                  <p className="font-semibold text-gray-900 dark:text-white">
+                    {b.user?.name ?? '—'}
+                    <span className="ml-2 font-mono text-xs text-gray-400">{b.ticketNumber}</span>
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    {b.source} → {b.destination} · Seat {b.seat.seatNumber} · RWF {Number(b.totalPrice).toLocaleString()}
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    Method: <span className="font-medium">{b.payment?.method ?? '—'}</span>
+                    {b.payment?.reference && <> · Ref: <span className="font-mono">{b.payment.reference}</span></>}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button size="sm" variant="secondary" onClick={() => openProof(b)}>
+                    <Eye className="mr-1.5 h-3.5 w-3.5" /> View Proof
+                  </Button>
+                  <Button size="sm" onClick={() => approveMutation.mutate(b.id)} loading={approveMutation.isPending}>
+                    <CheckCircle className="mr-1.5 h-3.5 w-3.5" /> Approve
+                  </Button>
+                  <Button size="sm" variant="danger" onClick={() => setRejectId(b.id)}>
+                    <XCircle className="mr-1.5 h-3.5 w-3.5" /> Reject
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        !isLoading && (
+          <div className="rounded-xl border border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/10 px-4 py-3 text-sm text-green-700 dark:text-green-400 flex items-center gap-2">
+            <CheckCircle className="h-4 w-4 shrink-0" /> No pending payment approvals
+          </div>
+        )
+      )}
+
+      {/* ── ALL BOOKINGS TABLE ── */}
       <Card>
         <CardHeader>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -65,7 +181,7 @@ export default function BookingsPage() {
               onChange={(e) => setStatusFilter(e.target.value)}
             >
               <option value="ALL">All Statuses</option>
-              {['PENDING', 'CONFIRMED', 'CANCELLED', 'USED'].map((s) => (
+              {['PENDING', 'AWAITING_APPROVAL', 'CONFIRMED', 'CANCELLED', 'USED'].map((s) => (
                 <option key={s} value={s}>{s}</option>
               ))}
             </select>
@@ -81,31 +197,50 @@ export default function BookingsPage() {
               <table className="w-full text-sm">
                 <thead className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
                   <tr className="text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-                    {['Ticket', 'Passenger', 'Route', 'Departure', 'Seat', 'Price', 'Status', 'Actions'].map((h) => (
+                    {['Ticket', 'Passenger', 'Route', 'Departure', 'Seat', 'Price', 'Payment', 'Status', 'Actions'].map((h) => (
                       <th key={h} className="px-4 py-3">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                   {filtered.map((b) => (
-                    <tr key={b.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
+                    <tr key={b.id} className={`transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/30 ${b.status === 'AWAITING_APPROVAL' ? 'bg-orange-50/60 dark:bg-orange-900/10' : ''}`}>
                       <td className="px-4 py-3 font-mono text-xs text-gray-600 dark:text-gray-300">{b.ticketNumber}</td>
-                      <td className="px-4 py-3 text-gray-900 dark:text-white">{b.user?.name}</td>
-                      <td className="px-4 py-3 text-gray-500">{b.source} → {b.destination}</td>
+                      <td className="px-4 py-3 text-gray-900 dark:text-white">{b.user?.name ?? '—'}</td>
+                      <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{b.source} → {b.destination}</td>
                       <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{new Date(b.schedule.departureTime).toLocaleString()}</td>
                       <td className="px-4 py-3 text-gray-500">{b.seat.seatNumber}</td>
-                      <td className="px-4 py-3 text-gray-500">RWF {Number(b.totalPrice).toLocaleString()}</td>
-                      <td className="px-4 py-3"><Badge variant={statusVariant(b.status)}>{b.status}</Badge></td>
+                      <td className="px-4 py-3 text-gray-500 whitespace-nowrap">RWF {Number(b.totalPrice).toLocaleString()}</td>
+                      <td className="px-4 py-3 text-gray-500 text-xs">
+                        {b.payment?.method ?? '—'}
+                        {b.payment?.reference && <span className="block text-gray-400 font-mono">{b.payment.reference}</span>}
+                      </td>
                       <td className="px-4 py-3">
-                        {b.status !== 'CANCELLED' && b.status !== 'USED' && (
-                          <Button
-                            size="sm"
-                            variant="danger"
-                            onClick={() => cancelMutation.mutate(b.id)}
-                          >
-                            Cancel
-                          </Button>
-                        )}
+                        <Badge variant={statusVariant(b.status)}>
+                          {b.status === 'AWAITING_APPROVAL' ? 'AWAITING' : b.status}
+                        </Badge>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1.5">
+                          {b.status === 'AWAITING_APPROVAL' && (
+                            <>
+                              <Button size="sm" variant="secondary" onClick={() => openProof(b)}>
+                                <Eye className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button size="sm" onClick={() => approveMutation.mutate(b.id)} loading={approveMutation.isPending}>
+                                <CheckCircle className="mr-1 h-3.5 w-3.5" /> Approve
+                              </Button>
+                              <Button size="sm" variant="danger" onClick={() => setRejectId(b.id)}>
+                                <XCircle className="mr-1 h-3.5 w-3.5" /> Reject
+                              </Button>
+                            </>
+                          )}
+                          {b.status !== 'CANCELLED' && b.status !== 'USED' && b.status !== 'AWAITING_APPROVAL' && (
+                            <Button size="sm" variant="danger" onClick={() => cancelMutation.mutate(b.id)} loading={cancelMutation.isPending}>
+                              Cancel
+                            </Button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -115,6 +250,73 @@ export default function BookingsPage() {
           )}
         </CardBody>
       </Card>
+
+      {/* Proof review modal */}
+      {proofModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setProofModal(null)}>
+          <div className="w-full max-w-lg rounded-xl bg-white dark:bg-gray-800 shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 px-5 py-4">
+              <div>
+                <h3 className="font-semibold text-gray-900 dark:text-white">Payment Proof</h3>
+                <p className="text-xs text-gray-500 mt-0.5">{proofModal.passenger} · {proofModal.ticketNumber}</p>
+              </div>
+              <button onClick={() => setProofModal(null)} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                <XCircle className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="px-5 py-3 bg-gray-50 dark:bg-gray-700/30 flex flex-wrap gap-6 text-sm">
+              <div><p className="text-xs text-gray-400">Amount</p><p className="font-semibold text-gray-900 dark:text-white">RWF {proofModal.amount.toLocaleString()}</p></div>
+              <div><p className="text-xs text-gray-400">Method</p><p className="font-semibold text-gray-900 dark:text-white">{proofModal.method ?? '—'}</p></div>
+              {proofModal.reference && (
+                <div><p className="text-xs text-gray-400">Reference</p><p className="font-semibold font-mono text-gray-900 dark:text-white">{proofModal.reference}</p></div>
+              )}
+            </div>
+            <div className="px-5 py-4">
+              {proofModal.proofUrl ? (
+                <img src={proofModal.proofUrl} alt="Proof of payment" className="w-full max-h-72 rounded-lg object-contain border border-gray-200 dark:border-gray-700 bg-gray-50" />
+              ) : (
+                <div className="flex flex-col items-center gap-2 rounded-lg border-2 border-dashed border-gray-200 dark:border-gray-700 py-10 text-gray-400">
+                  <FileImage className="h-8 w-8" />
+                  <p className="text-sm">No proof image uploaded</p>
+                  <p className="text-xs">Customer provided reference number only</p>
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 border-t border-gray-200 dark:border-gray-700 px-5 py-4">
+              <Button variant="secondary" onClick={() => setProofModal(null)}>Close</Button>
+              <Button variant="danger" onClick={() => { setRejectId(proofModal.bookingId); setProofModal(null) }}>
+                <XCircle className="mr-1.5 h-4 w-4" /> Reject
+              </Button>
+              <Button onClick={() => approveMutation.mutate(proofModal.bookingId)} loading={approveMutation.isPending}>
+                <CheckCircle className="mr-1.5 h-4 w-4" /> Approve
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reject reason modal */}
+      {rejectId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-sm rounded-xl bg-white dark:bg-gray-800 p-6 shadow-xl space-y-4">
+            <h3 className="font-semibold text-gray-900 dark:text-white">Reject Payment</h3>
+            <p className="text-sm text-gray-500">Optionally provide a reason. The customer will be notified by email.</p>
+            <textarea
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+              rows={3}
+              placeholder="e.g. Screenshot unclear, wrong amount sent..."
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => { setRejectId(null); setRejectReason('') }}>Cancel</Button>
+              <Button variant="danger" loading={rejectMutation.isPending} onClick={() => rejectMutation.mutate({ id: rejectId, reason: rejectReason })}>
+                Reject Payment
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -21,7 +21,9 @@ export default function SearchPage() {
   const [searchParams] = useSearchParams()
 
   const [origin, setOrigin] = useState(searchParams.get('origin') ?? '')
+  const [destination, setDestination] = useState(searchParams.get('destination') ?? '')
   const [date, setDate] = useState(searchParams.get('date') ?? '')
+  const [dateError, setDateError] = useState('')
   const [submitted, setSubmitted] = useState(
     !!(searchParams.get('origin') || searchParams.get('date'))
   )
@@ -29,21 +31,38 @@ export default function SearchPage() {
   useEffect(() => {
     const o = searchParams.get('origin') ?? ''
     const d = searchParams.get('date') ?? ''
+    const dest = searchParams.get('destination') ?? ''
     setOrigin(o)
+    setDestination(dest)
     setDate(d)
     if (o || d) setSubmitted(true)
   }, [searchParams])
 
   const { data, isLoading } = useQuery({
-    queryKey: ['schedules', origin, date],
-    queryFn: () => scheduleService.search({ origin, date }),
+    queryKey: ['schedules', origin, destination, date],
+    queryFn: () => scheduleService.search({ origin, destination, date }),
     enabled: submitted,
   })
 
   const schedules: Schedule[] = (data as { data: Schedule[] })?.data ?? []
 
+  function handleDateChange(val: string) {
+    if (val && val < today) {
+      setDateError('Please select today or a future date.')
+      setDate(today)
+    } else {
+      setDateError('')
+      setDate(val)
+    }
+  }
+
   function handleSearch(e: React.FormEvent) {
     e.preventDefault()
+    if (date && date < today) {
+      setDateError('Please select today or a future date.')
+      setDate(today)
+      return
+    }
     setSubmitted(true)
   }
 
@@ -61,59 +80,72 @@ export default function SearchPage() {
       </div>
 
       {/* Search form */}
-      <div className="mb-8 rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+      <div className="mb-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
         <form onSubmit={handleSearch}>
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+          <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-row sm:items-end sm:gap-4">
 
             {/* Origin */}
             <div className="flex-1">
-              <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1.5">
-                From
-              </label>
+              <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1.5">From</label>
               <div className="relative">
-                <MapPin className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <input
-                  className="w-full rounded-lg border border-gray-200 bg-gray-50 pl-9 pr-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 transition focus:border-primary-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary-500/20 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-500"
-                  placeholder="e.g. Nyanza"
+                <MapPin className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 hidden sm:block" />
+                <select
+                  className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 sm:pl-9 sm:pr-3 py-2.5 text-sm text-gray-900 transition focus:border-primary-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary-500/20 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                   value={origin}
                   onChange={(e) => setOrigin(e.target.value)}
-                />
+                >
+                  <option value="">Any origin</option>
+                  <option value="Nyanza">Nyanza</option>
+                  <option value="Ruhango">Ruhango</option>
+                  <option value="Muhanga">Muhanga</option>
+                  <option value="Kigali">Kigali</option>
+                </select>
               </div>
             </div>
 
-            {/* Destination — locked */}
+            {/* Destination */}
             <div className="flex-1">
-              <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1.5">
-                To
-              </label>
+              <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1.5">To</label>
               <div className="relative">
-                <MapPin className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-300" />
-                <input
-                  className="w-full rounded-lg border border-gray-200 bg-gray-100 pl-9 pr-3 py-2.5 text-sm text-gray-400 cursor-not-allowed dark:border-gray-600 dark:bg-gray-700/50 dark:text-gray-500"
-                  value="Kigali"
-                  readOnly
-                />
+                <MapPin className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 hidden sm:block" />
+                <select
+                  className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 sm:pl-9 sm:pr-3 py-2.5 text-sm text-gray-900 transition focus:border-primary-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary-500/20 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                  value={destination}
+                  onChange={(e) => setDestination(e.target.value)}
+                >
+                  <option value="">Any destination</option>
+                  <option value="Ruhango">Ruhango</option>
+                  <option value="Muhanga">Muhanga</option>
+                  <option value="Kigali">Kigali</option>
+                </select>
               </div>
             </div>
 
             {/* Date */}
-            <div className="flex-1">
-              <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1.5">
-                Travel Date
-              </label>
+            <div className="col-span-2 sm:col-span-1 flex-1">
+              <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1.5">Travel Date</label>
               <div className="relative">
-                <Calendar className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Calendar className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 hidden sm:block" />
                 <input
                   type="date"
-                  className="w-full rounded-lg border border-gray-200 bg-gray-50 pl-9 pr-3 py-2.5 text-sm text-gray-900 transition focus:border-primary-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary-500/20 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:[color-scheme:dark]"
+                  className={`w-full rounded-lg border bg-gray-50 px-3 sm:pl-9 sm:pr-3 py-2.5 text-sm text-gray-900 transition focus:bg-white focus:outline-none focus:ring-2 dark:bg-gray-700 dark:text-white dark:[color-scheme:dark] ${
+                    dateError
+                      ? 'border-red-400 focus:border-red-400 focus:ring-red-400/20'
+                      : 'border-gray-200 focus:border-primary-500 focus:ring-primary-500/20 dark:border-gray-600'
+                  }`}
                   value={date}
                   min={today}
-                  onChange={(e) => setDate(e.target.value)}
+                  onChange={(e) => handleDateChange(e.target.value)}
                 />
+                {dateError && (
+                  <p className="mt-1 flex items-center gap-1 text-xs text-red-500">
+                    <Calendar className="h-3 w-3 shrink-0" />{dateError}
+                  </p>
+                )}
               </div>
             </div>
 
-            <Button type="submit" className="w-full sm:w-auto shrink-0 gap-2">
+            <Button type="submit" className="col-span-2 sm:col-span-1 w-full sm:w-auto shrink-0 gap-2">
               <Search className="h-4 w-4" /> Search
             </Button>
           </div>
@@ -189,7 +221,7 @@ export default function SearchPage() {
                   </div>
 
                   {/* Right — price + action */}
-                  <div className="flex items-center justify-between gap-4 sm:flex-col sm:items-end sm:justify-start">
+                  <div className="flex items-center justify-between gap-3 sm:flex-col sm:items-end sm:justify-start sm:gap-2">
                     <p className="text-lg font-bold text-primary-600">
                       RWF {Number(s.price).toLocaleString()}
                     </p>

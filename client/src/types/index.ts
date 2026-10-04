@@ -1,6 +1,6 @@
 export type Role = 'GUEST' | 'CUSTOMER' | 'AGENT' | 'ADMIN'
 
-export type BookingStatus = 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'USED'
+export type BookingStatus = 'PENDING' | 'AWAITING_APPROVAL' | 'CONFIRMED' | 'CANCELLED' | 'USED'
 
 export type ScheduleStatus = 'SCHEDULED' | 'DEPARTED' | 'COMPLETED' | 'CANCELLED'
 
@@ -42,6 +42,7 @@ export interface Route {
   destination: string
   distanceKm?: number
   basePrice: number
+  imageUrl?: string | null
   isActive: boolean
   stops: RouteStop[]
 }
@@ -83,6 +84,8 @@ export interface Payment {
   amount: number
   method: PaymentMethod
   status: PaymentStatus
+  reference?: string
+  proofUrl?: string
   paidAt?: string
 }
 

@@ -1,5 +1,5 @@
 FROM node:20-alpine
-
+# cache-bust: 3
 RUN apk add --no-cache openssl
 
 WORKDIR /app
@@ -11,6 +11,7 @@ COPY . .
 
 RUN npx prisma generate --schema=src/prisma/schema.prisma
 RUN npm run build
+RUN cp src/openapi.yaml dist/openapi.yaml
 
 EXPOSE 5000
 
