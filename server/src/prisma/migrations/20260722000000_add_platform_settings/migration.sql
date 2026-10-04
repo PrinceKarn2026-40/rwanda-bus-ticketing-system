@@ -19,3 +19,6 @@ CREATE TABLE "platform_settings" (
 
     CONSTRAINT "platform_settings_pkey" PRIMARY KEY ("id")
 );
+
+-- AlterTable (moved from 20260721054909)
+ALTER TABLE "platform_settings" ALTER COLUMN "aiModel" SET DEFAULT 'gemini-2.0-flash';
