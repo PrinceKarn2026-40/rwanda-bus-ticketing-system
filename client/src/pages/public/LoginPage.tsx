@@ -64,6 +64,19 @@ export default function LoginPage() {
             </div>
           )}
 
+          {scheduleId && (
+            <div className="grid grid-cols-2 gap-3">
+              <Link
+                to="/register"
+                state={state}
+                className="flex items-center justify-center rounded-lg border-2 border-primary-600 px-4 py-2.5 text-sm font-semibold text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20"
+              >
+                Create Account
+              </Link>
+              <span className="flex items-center justify-center text-sm text-gray-400">or sign in below</span>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <Input
               label="Email"
