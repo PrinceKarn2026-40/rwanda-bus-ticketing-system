@@ -20,10 +20,10 @@ export interface PublicSettings {
 
 const defaults: PublicSettings = {
   siteName: 'Rwanda Bus',
-  supportPhone: '+250794047261',
+  supportPhone: '+250795919537',
   supportEmail: 'rwandabus@gmail.com',
   supportAddress: 'KG 7 Ave, Kigali, Rwanda',
-  whatsappNumber: '+250794047261',
+  whatsappNumber: '+250795919537',
   whatsappMessage: 'Hello! I need help with my bus booking.',
   whatsappEnabled: true,
   maintenanceMode: false,

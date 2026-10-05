@@ -244,7 +244,7 @@ async function main() {
     create: {
       id: 'singleton',
       siteName: 'Rwanda Bus',
-      supportPhone: '+250794047261',
+      supportPhone: '+250795919537',
       supportEmail: 'rwandabus@gmail.com',
       supportAddress: 'KG 7 Ave, Kigali, Rwanda',
       whatsappNumber: '+250795919537',

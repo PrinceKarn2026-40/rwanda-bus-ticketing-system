@@ -238,10 +238,10 @@ model HeroSlide {
 model PlatformSettings {
   id                 String   @id @default("singleton")
   siteName           String   @default("Rwanda Bus")
-  supportPhone       String   @default("+250794047261")
+  supportPhone       String   @default("+250795919537")
   supportEmail       String   @default("rwandabus@gmail.com")
   supportAddress     String   @default("KG 7 Ave, Kigali, Rwanda")
-  whatsappNumber     String   @default("+250794047261")
+  whatsappNumber     String   @default("+250795919537")
   whatsappMessage    String   @default("Hello! I need help with my bus booking.")
   whatsappEnabled    Boolean  @default(true)
   maintenanceMode    Boolean  @default(false)

@@ -15,7 +15,7 @@ You help passengers with:
 - Booking: Visit the website, search schedules, select a seat, pay online
 - Cancellation: Allowed up to 3 hours before departure
 - Payment: Must be completed at least 1 hour before departure
-- Support: Phone +250794047261, Email rwandabus@gmail.com
+- Support: Phone +250795919537, Email rwandabus@gmail.com
 Keep answers short, friendly, and helpful. If unsure, direct them to contact support.`
 
 const FAQ_FALLBACK: Record<string, string> = {
@@ -26,8 +26,8 @@ const FAQ_FALLBACK: Record<string, string> = {
   cancel: 'You can cancel your booking up to 3 hours before departure from your dashboard.',
   ticket: 'Download your PDF ticket from your booking history after payment.',
   payment: 'We accept MoMo, card, and cash. Payment must be done at least 1 hour before departure.',
-  contact: 'Call or WhatsApp +250794047261 or email rwandabus@gmail.com.',
-  default: 'I\'m here to help! You can ask about routes, prices, schedules, booking, or cancellation. For urgent help, contact +250794047261.',
+  contact: 'Call or WhatsApp +250795919537 or email rwandabus@gmail.com.',
+  default: 'I\'m here to help! You can ask about routes, prices, schedules, booking, or cancellation. For urgent help, contact +250795919537.',
 }
 
 function staticFallback(message: string): string {

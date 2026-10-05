@@ -128,7 +128,7 @@ export default function SettingsPage() {
           </label>
         </div>
         <Field label="WhatsApp Number" error={errors.whatsappNumber?.message}>
-          <input {...register('whatsappNumber')} placeholder="+250794047261" className={inputCls} />
+          <input {...register('whatsappNumber')} placeholder="+250795919537" className={inputCls} />
         </Field>
         <Field label="Pre-filled Message" error={errors.whatsappMessage?.message}>
           <input {...register('whatsappMessage')} className={inputCls} />

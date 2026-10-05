@@ -4,7 +4,7 @@ import { Card, CardBody, Button } from '@/components/ui'
 type PaymentMethod = 'MOMO' | 'CARD' | 'CASH'
 
 const METHODS: { value: PaymentMethod; label: string; icon: React.ElementType; hint: string }[] = [
-  { value: 'MOMO', label: 'Mobile Money', icon: Smartphone, hint: 'Send to: +250 794 047 261' },
+  { value: 'MOMO', label: 'Mobile Money', icon: Smartphone, hint: 'Send to: +250 795 919 537' },
   { value: 'CARD', label: 'Bank Card', icon: CreditCard, hint: 'Transfer to account: 1234-5678-9012' },
   { value: 'CASH', label: 'Cash (at office)', icon: CreditCard, hint: 'Pay at our Nyanza or Kigali office' },
 ]
