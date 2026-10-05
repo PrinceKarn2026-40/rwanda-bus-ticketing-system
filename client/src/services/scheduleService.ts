@@ -31,4 +31,8 @@ export const scheduleService = {
   async remove(id: string): Promise<void> {
     await api.delete(`/schedules/${id}`)
   },
+
+  async hardDelete(id: string): Promise<void> {
+    await api.delete(`/schedules/${id}/hard`)
+  },
 }

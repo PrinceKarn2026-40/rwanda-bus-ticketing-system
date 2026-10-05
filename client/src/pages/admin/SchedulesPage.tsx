@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Plus, Edit2, X, Search, CalendarDays, ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react'
+import { Plus, Edit2, X, Search, CalendarDays, ChevronLeft, ChevronRight, AlertTriangle, Trash2 } from 'lucide-react'
 import { scheduleService } from '@/services/scheduleService'
 import { busService, routeService } from '@/services/adminService'
 import { Button, Input, Card, CardBody, Badge, Skeleton } from '@/components/ui'
@@ -130,6 +130,7 @@ export default function SchedulesPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [editSchedule, setEditSchedule] = useState<Schedule | null>(null)
   const [cancelSchedule, setCancelSchedule] = useState<Schedule | null>(null)
+  const [deleteSchedule, setDeleteSchedule] = useState<Schedule | null>(null)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('ALL')
   const [dateFilter, setDateFilter] = useState('')
@@ -174,6 +175,12 @@ export default function SchedulesPage() {
       scheduleService.update(id, { ...d, departureTime: new Date(d.departureTime).toISOString() }),
     onSuccess: () => { toast.success('Schedule updated'); qc.invalidateQueries({ queryKey: ['schedules'] }); setEditSchedule(null) },
     onError: () => toast.error('Failed to update schedule'),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => scheduleService.hardDelete(id),
+    onSuccess: () => { toast.success('Schedule deleted'); qc.invalidateQueries({ queryKey: ['schedules'] }); setDeleteSchedule(null) },
+    onError: () => toast.error('Failed to delete schedule'),
   })
 
   const cancelMutation = useMutation({
@@ -291,16 +298,21 @@ export default function SchedulesPage() {
                           <Badge variant={statusVariant(s.status)}>{s.status}</Badge>
                         </td>
                         <td className="px-4 py-3">
-                          {s.status === 'SCHEDULED' && (
-                            <div className="flex items-center gap-2">
-                              <Button size="sm" variant="secondary" onClick={() => { setEditSchedule(s); setShowCreate(false) }}>
-                                <Edit2 className="h-3.5 w-3.5" />
-                              </Button>
-                              <Button size="sm" variant="danger" onClick={() => setCancelSchedule(s)}>
-                                Cancel
-                              </Button>
-                            </div>
-                          )}
+                          <div className="flex items-center gap-2">
+                            {s.status === 'SCHEDULED' && (
+                              <>
+                                <Button size="sm" variant="secondary" onClick={() => { setEditSchedule(s); setShowCreate(false) }}>
+                                  <Edit2 className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button size="sm" variant="danger" onClick={() => setCancelSchedule(s)}>
+                                  Cancel
+                                </Button>
+                              </>
+                            )}
+                            <Button size="sm" variant="danger" onClick={() => setDeleteSchedule(s)}>
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     )
@@ -376,6 +388,32 @@ export default function SchedulesPage() {
           onSubmit={(d) => updateMutation.mutate({ id: editSchedule.id, d })}
           onClose={() => setEditSchedule(null)}
         />
+      )}
+
+      {deleteSchedule && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl dark:bg-gray-800">
+            <div className="p-6 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
+                  <Trash2 className="h-5 w-5 text-red-600" />
+                </div>
+                <div>
+                  <p className="font-semibold text-gray-900 dark:text-white">Delete Schedule?</p>
+                  <p className="text-sm text-gray-500">This will permanently delete the schedule.</p>
+                </div>
+              </div>
+              <div className="rounded-lg bg-gray-50 dark:bg-gray-900 p-3 text-sm space-y-1">
+                <p className="font-medium text-gray-900 dark:text-white">{deleteSchedule.route.origin} → {deleteSchedule.route.destination}</p>
+                <p className="text-gray-500">{new Date(deleteSchedule.departureTime).toLocaleString()} · {deleteSchedule.bus.name}</p>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="secondary" onClick={() => setDeleteSchedule(null)}>Cancel</Button>
+                <Button variant="danger" onClick={() => deleteMutation.mutate(deleteSchedule.id)} loading={deleteMutation.isPending}>Delete</Button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {cancelSchedule && (

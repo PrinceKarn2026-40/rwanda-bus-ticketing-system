@@ -46,3 +46,8 @@ export async function deleteSchedule(req: AuthRequest, res: Response) {
   await scheduleService.cancelSchedule(req.params.id as string, req.user!.id)
   res.json({ message: 'Schedule cancelled and passengers notified' })
 }
+
+export async function hardDeleteSchedule(req: AuthRequest, res: Response) {
+  await scheduleService.hardDeleteSchedule(req.params.id as string)
+  res.json({ message: 'Schedule deleted' })
+}

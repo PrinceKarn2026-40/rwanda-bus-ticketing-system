@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { getSchedules, getScheduleById, createSchedule, updateSchedule, deleteSchedule } from '../controllers/schedule.controller.js'
+import { getSchedules, getScheduleById, createSchedule, updateSchedule, deleteSchedule, hardDeleteSchedule } from '../controllers/schedule.controller.js'
 import { authenticate, authorize } from '../middlewares/auth.middleware.js'
 
 const router = Router()
@@ -9,5 +9,6 @@ router.get('/:id', getScheduleById)
 router.post('/', authenticate, authorize('ADMIN', 'AGENT'), createSchedule)
 router.put('/:id', authenticate, authorize('ADMIN', 'AGENT'), updateSchedule)
 router.delete('/:id', authenticate, authorize('ADMIN'), deleteSchedule)
+router.delete('/:id/hard', authenticate, authorize('ADMIN'), hardDeleteSchedule)
 
 export default router

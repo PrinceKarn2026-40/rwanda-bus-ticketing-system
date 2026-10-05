@@ -63,7 +63,9 @@ export async function updateSchedule(
   return prisma.schedule.update({ where: { id }, data })
 }
 
-export async function cancelSchedule(id: string, cancelledBy: string) {
+export async function hardDeleteSchedule(id: string) {
+  await prisma.schedule.delete({ where: { id } })
+}
   const schedule = await prisma.schedule.findUnique({
     where: { id },
     include: {
