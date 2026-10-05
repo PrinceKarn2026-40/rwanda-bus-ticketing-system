@@ -7,6 +7,6 @@ export const uploadService = {
     const { data } = await api.post(`/upload?folder=${folder}`, form, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
-    return data.url as string
+    return data.data.url as string
   },
 }

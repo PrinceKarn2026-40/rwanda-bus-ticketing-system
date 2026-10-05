@@ -22,7 +22,7 @@ export async function uploadFile(req: Request, res: Response, next: NextFunction
     }
 
     const result = await uploadImage(req.file.buffer, folder)
-    res.json({ url: result.url, publicId: result.publicId })
+    res.json({ data: { url: result.url, publicId: result.publicId } })
   } catch (err) {
     next(err)
   }
