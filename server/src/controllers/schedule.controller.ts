@@ -24,9 +24,9 @@ export async function createSchedule(req: Request, res: Response) {
   const { departureTime, arrivalTime, ...rest } = parsed.data
   const schedule = await scheduleService.createSchedule({
     ...rest,
-    departureTime: new Date(departureTime),
+    departureTime: new Date(departureTime!),
     ...(arrivalTime ? { arrivalTime: new Date(arrivalTime) } : {}),
-  })
+  } as Parameters<typeof scheduleService.createSchedule>[0])
   res.status(201).json({ data: schedule })
 }
 

@@ -8,7 +8,7 @@ export async function register(req: Request, res: Response) {
   const parsed = registerSchema.safeParse(req.body)
   if (!parsed.success) { res.status(400).json({ message: 'Validation error', errors: parsed.error.flatten() }); return }
 
-  const user = await authService.registerUser(parsed.data)
+  const user = await authService.registerUser(parsed.data as Parameters<typeof authService.registerUser>[0])
   const token = authService.signToken(user.id, user.role)
   res.status(201).json({ data: { user, token } })
 }

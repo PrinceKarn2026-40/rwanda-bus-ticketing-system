@@ -10,7 +10,7 @@ export async function getRoutes(_req: Request, res: Response) {
 export async function createRoute(req: Request, res: Response) {
   const parsed = createRouteSchema.safeParse(req.body)
   if (!parsed.success) { res.status(400).json({ message: 'Validation error', errors: parsed.error.flatten() }); return }
-  const route = await routeService.createRoute(parsed.data)
+  const route = await routeService.createRoute(parsed.data as Parameters<typeof routeService.createRoute>[0])
   res.status(201).json({ data: route })
 }
 

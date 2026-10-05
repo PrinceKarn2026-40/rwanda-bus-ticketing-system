@@ -10,7 +10,7 @@ export async function getBuses(_req: Request, res: Response) {
 export async function createBus(req: Request, res: Response) {
   const parsed = createBusSchema.safeParse(req.body)
   if (!parsed.success) { res.status(400).json({ message: 'Validation error', errors: parsed.error.flatten() }); return }
-  const bus = await busService.createBus(parsed.data)
+  const bus = await busService.createBus(parsed.data as Parameters<typeof busService.createBus>[0])
   res.status(201).json({ data: bus })
 }
 

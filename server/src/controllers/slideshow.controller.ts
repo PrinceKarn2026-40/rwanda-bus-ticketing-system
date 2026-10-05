@@ -88,7 +88,7 @@ export async function getSlides(_req: Request, res: Response) {
 export async function createSlide(req: Request, res: Response) {
   const parsed = slideSchema.safeParse(req.body)
   if (!parsed.success) { res.status(400).json({ message: 'Validation error', errors: parsed.error.flatten() }); return }
-  const slide = await prisma.heroSlide.create({ data: parsed.data })
+  const slide = await prisma.heroSlide.create({ data: parsed.data as Parameters<typeof prisma.heroSlide.create>[0]['data'] })
   res.status(201).json({ data: slide })
 }
 

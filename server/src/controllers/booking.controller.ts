@@ -11,7 +11,7 @@ export async function createBooking(req: AuthRequest, res: Response) {
     userId: req.user!.id,
     ...parsed.data,
     ipAddress: req.ip,
-  })
+  } as Parameters<typeof bookingService.createBooking>[0])
   res.status(201).json({ data: booking })
 }
 
