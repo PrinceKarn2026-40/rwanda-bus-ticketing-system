@@ -247,7 +247,7 @@ async function main() {
       supportPhone: '+250794047261',
       supportEmail: 'rwandabus@gmail.com',
       supportAddress: 'KG 7 Ave, Kigali, Rwanda',
-      whatsappNumber: '+250794047261',
+      whatsappNumber: '+250795919537',
       whatsappMessage: 'Hello! I need help with my bus booking.',
       maintenanceMode: false,
       maintenanceMessage: "We are currently performing scheduled maintenance. We'll be back shortly.",

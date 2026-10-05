@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Download, XCircle, CreditCard, Clock } from 'lucide-react'
+import { ArrowLeft, Download, XCircle, CreditCard, Clock, Printer } from 'lucide-react'
 import { Button, Card, CardBody, Badge, Skeleton } from '@/components/ui'
 import { useBookingById, useDownloadTicket, useCancelBooking } from '@/hooks/useBookings'
 import { formatDateTime, formatRwf, canCancel } from '@/utils'
@@ -37,15 +37,29 @@ export default function TicketPage() {
   const confirmed = booking.status === 'CONFIRMED'
   const cancellable = (confirmed || booking.status === 'AWAITING_APPROVAL') && canCancel(booking.schedule.departureTime)
 
+  function handlePrint() {
+    window.print()
+  }
+
   return (
     <div className="space-y-6">
+      {/* Print styles */}
+      <style>{`
+        @media print {
+          body > * { display: none !important; }
+          #print-ticket { display: block !important; position: fixed; inset: 0; padding: 32px; }
+          #print-ticket * { display: revert !important; }
+        }
+      `}</style>
+
       <button
         onClick={() => navigate('/bookings')}
-        className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
+        className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 print:hidden"
       >
         <ArrowLeft className="h-4 w-4" /> Back to bookings
       </button>
 
+      <div id="print-ticket">
       <Card className="max-w-lg">
         <CardBody className="space-y-4">
           <div className="flex items-center justify-between">
@@ -57,13 +71,13 @@ export default function TicketPage() {
 
           {/* Status messages */}
           {booking.status === 'AWAITING_APPROVAL' && (
-            <div className="rounded-lg bg-orange-50 dark:bg-orange-900/20 px-4 py-3 text-sm text-orange-700 dark:text-orange-300">
+            <div className="rounded-lg bg-orange-50 dark:bg-orange-900/20 px-4 py-3 text-sm text-orange-700 dark:text-orange-300 print:hidden">
               <p className="font-semibold flex items-center gap-1.5"><Clock className="h-4 w-4" /> Payment Under Review</p>
               <p className="mt-0.5 text-xs">An admin is verifying your proof of payment. You'll receive an email once confirmed.</p>
             </div>
           )}
           {booking.status === 'PENDING' && (
-            <div className="rounded-lg bg-yellow-50 dark:bg-yellow-900/20 px-4 py-3 text-sm text-yellow-700 dark:text-yellow-300">
+            <div className="rounded-lg bg-yellow-50 dark:bg-yellow-900/20 px-4 py-3 text-sm text-yellow-700 dark:text-yellow-300 print:hidden">
               <p className="font-semibold">Payment Required</p>
               <p className="mt-0.5 text-xs">Your seat is reserved but payment has not been submitted yet.</p>
             </div>
@@ -96,17 +110,22 @@ export default function TicketPage() {
             </Button>
           )}
 
-          {/* CONFIRMED — download */}
+          {/* CONFIRMED — download + print */}
           {confirmed && (
-            <Button className="w-full" onClick={() => downloadTicket(booking.id, booking.ticketNumber)}>
-              <Download className="mr-2 h-4 w-4" /> Download PDF
-            </Button>
+            <div className="flex gap-2 print:hidden">
+              <Button className="flex-1" onClick={() => downloadTicket(booking.id, booking.ticketNumber)}>
+                <Download className="mr-2 h-4 w-4" /> Download PDF
+              </Button>
+              <Button className="flex-1" variant="secondary" onClick={handlePrint}>
+                <Printer className="mr-2 h-4 w-4" /> Print
+              </Button>
+            </div>
           )}
 
           {/* Cancel */}
           {cancellable && (
             <Button
-              className="w-full"
+              className="w-full print:hidden"
               variant="danger"
               loading={cancelMutation.isPending}
               onClick={() => cancelMutation.mutate(booking.id, { onSuccess: () => navigate('/bookings') })}
@@ -116,12 +135,13 @@ export default function TicketPage() {
           )}
 
           {confirmed && !cancellable && (
-            <p className="text-center text-xs text-gray-400">
+            <p className="text-center text-xs text-gray-400 print:hidden">
               Cancellation window has closed (less than 3 hours before departure).
             </p>
           )}
         </CardBody>
       </Card>
+      </div>
     </div>
   )
 }
