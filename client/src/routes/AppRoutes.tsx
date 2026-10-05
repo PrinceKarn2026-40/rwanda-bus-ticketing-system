@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 
 import PublicLayout from '@/layouts/PublicLayout'
@@ -67,8 +67,15 @@ function ProtectedRoute({
 // Redirect already-authenticated users away from public-only pages
 function GuestRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth()
+  const location = useLocation()
   if (isLoading) return null
-  if (user) return <Navigate to={roleDashboard(user.role)} replace />
+  if (user) {
+    const state = location.state as { scheduleId?: string; from?: string } | null
+    const dest = state?.scheduleId
+      ? `/book/${state.scheduleId}`
+      : state?.from ?? roleDashboard(user.role)
+    return <Navigate to={dest} replace />
+  }
   return <>{children}</>
 }
 
