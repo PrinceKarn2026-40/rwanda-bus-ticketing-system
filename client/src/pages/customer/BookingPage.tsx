@@ -36,8 +36,6 @@ export default function BookingPage() {
   const [step, setStep] = useState<Step>('seat')
   const [pendingBookingId, setPendingBookingId] = useState<string | null>(null)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('MOMO')
-  const [reference, setReference] = useState('')
-  const [proofUrl, setProofUrl] = useState('')
   const [bookingError, setBookingError] = useState('')
 
   const { data: schedule, isLoading: loadingSchedule } = useQuery({
@@ -77,7 +75,7 @@ export default function BookingPage() {
   })
 
   const payMutation = useMutation({
-    mutationFn: () => bookingService.confirmPayment(pendingBookingId!, paymentMethod, reference.trim() || undefined, proofUrl || undefined),
+    mutationFn: () => bookingService.confirmPayment(pendingBookingId!, paymentMethod, undefined, undefined),
     onSuccess: () => {
       toast.success('Payment submitted! Awaiting admin approval.')
       navigate(`/bookings`)
@@ -178,12 +176,12 @@ export default function BookingPage() {
         <PaymentStep
           price={Number(schedule.price)}
           method={paymentMethod}
-          reference={reference}
-          proofUrl={proofUrl}
+          reference=''
+          proofUrl=''
           loading={payMutation.isPending}
           onMethodChange={setPaymentMethod}
-          onReferenceChange={setReference}
-          onProofUrlChange={setProofUrl}
+          onReferenceChange={() => {}}
+          onProofUrlChange={() => {}}
           onConfirm={() => payMutation.mutate()}
         />
       )}
