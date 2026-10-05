@@ -10,6 +10,15 @@ import { Button, Input, Card, CardBody, CardHeader, Badge, Skeleton } from '@/co
 import ImageUpload from '@/components/ui/ImageUpload'
 import type { Route } from '@/types'
 
+const RWANDA_CITIES = [
+  'Kigali', 'Butare (Huye)', 'Gitarama (Muhanga)', 'Ruhengeri (Musanze)',
+  'Gisenyi (Rubavu)', 'Byumba (Gicumbi)', 'Cyangugu (Rusizi)', 'Kibungo (Ngoma)',
+  'Rwamagana', 'Nyanza', 'Ruhango', 'Karongi (Kibuye)', 'Nyagatare',
+  'Kayonza', 'Kirehe', 'Bugesera', 'Rulindo', 'Gakenke', 'Burera',
+  'Nyabihu', 'Ngororero', 'Rutsiro', 'Nyamasheke', 'Kamonyi',
+  'Rwamagana', 'Gatsibo', 'Nyamagabe', 'Gisagara', 'Nyaruguru',
+]
+
 const schema = z.object({
   name: z.string().min(2),
   origin: z.string().min(2),
@@ -41,8 +50,22 @@ function RouteForm({
       <CardBody>
         <form onSubmit={handleSubmit(onSubmit)} className="grid gap-4 sm:grid-cols-2">
           <Input label="Route Name" placeholder="Nyanza – Kigali" error={errors.name?.message} {...register('name')} />
-          <Input label="Origin" placeholder="Nyanza" error={errors.origin?.message} {...register('origin')} />
-          <Input label="Destination" placeholder="Kigali" error={errors.destination?.message} {...register('destination')} />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Origin</label>
+            <select className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500" {...register('origin')}>
+              <option value="">Select origin city</option>
+              {RWANDA_CITIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+            {errors.origin && <p className="mt-1 text-xs text-red-500">{errors.origin.message}</p>}
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Destination</label>
+            <select className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500" {...register('destination')}>
+              <option value="">Select destination city</option>
+              {RWANDA_CITIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+            {errors.destination && <p className="mt-1 text-xs text-red-500">{errors.destination.message}</p>}
+          </div>
           <Input label="Base Price (RWF)" type="number" placeholder="2000" error={errors.basePrice?.message} {...register('basePrice')} />
           <div className="sm:col-span-2">
             <Controller
