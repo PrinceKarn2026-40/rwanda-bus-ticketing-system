@@ -3,7 +3,7 @@ import { sendScheduleCancellationNotice } from '../utils/email.js'
 import type { ScheduleStatus } from '@prisma/client'
 
 export async function listSchedules(filters: { origin?: string; destination?: string; date?: string }) {
-  const where: Record<string, unknown> = { status: 'SCHEDULED' }
+  const where: Record<string, unknown> = {}
 
   if (filters.origin && filters.destination) {
     where.route = {
