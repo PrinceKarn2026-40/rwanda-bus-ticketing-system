@@ -64,15 +64,15 @@ export async function updateSchedule(
 }
 
 export async function hardDeleteSchedule(id: string) {
-  // Delete related records first to avoid foreign key constraint errors
   const bookings = await prisma.booking.findMany({ where: { scheduleId: id }, select: { id: true } })
   const bookingIds = bookings.map((b) => b.id)
-
   await prisma.cancellation.deleteMany({ where: { bookingId: { in: bookingIds } } })
   await prisma.payment.deleteMany({ where: { bookingId: { in: bookingIds } } })
   await prisma.booking.deleteMany({ where: { scheduleId: id } })
   await prisma.schedule.delete({ where: { id } })
 }
+
+export async function cancelSchedule(id: string, cancelledBy: string) {
   const schedule = await prisma.schedule.findUnique({
     where: { id },
     include: {
